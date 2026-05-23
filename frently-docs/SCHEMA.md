@@ -1,5 +1,9 @@
 # Frently — Supabase Schema
 
+```sql
+supabase.schema('frently').from('listings').select('*')
+```
+
 ## Tables
 
 ### `profiles`
