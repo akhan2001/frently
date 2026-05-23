@@ -1,65 +1,100 @@
-import Image from "next/image";
+// Landing page — Frently (MVP)
+// Hero with placeholder photo area, then 6 placeholder Featured slots
+// (the 6 most recent rentals will populate here once listings are live).
+import Link from "next/link";
+import { Container } from "@/components/Container";
+import { Footer } from "@/components/Footer";
+import { ListingCardPlaceholder } from "@/components/ListingCard";
+import { Nav } from "@/components/Nav";
+import { IconArrowRight } from "@/components/icons";
 
-export default function Home() {
+function Hero() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <section className="bg-page">
+      <Container className="pt-6 pb-20">
+        <div className="relative rounded-3xl overflow-hidden shadow-sm">
+          <div className="aspect-[16/9] md:aspect-[2.1/1] w-full ph-stripes flex items-center justify-center">
+            <span className="ph-label">hero photo</span>
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/25 to-black/55" />
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
+            <h1
+              className="text-white font-bold leading-[1.05] tracking-[-0.02em] text-[40px] sm:text-[56px] md:text-[64px] max-w-[820px] drop-shadow-sm"
+              style={{ textWrap: "balance" }}
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+              Your rental, <span className="italic font-medium">on MLS</span>.
+            </h1>
+            <p
+              className="mt-4 text-white/85 text-[16px] md:text-[18px] max-w-[520px] leading-relaxed"
+              style={{ textWrap: "pretty" }}
             >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+              Ontario landlords list with Frently — we handle the MLS submission. You handle the keys.
+            </p>
+            <div className="mt-7 flex items-center justify-center gap-3">
+              <Link
+                href="/signup"
+                className="inline-flex items-center gap-1.5 h-11 px-6 rounded-full bg-forest text-white text-[14px] font-semibold hover:bg-forest-700 transition"
+              >
+                List my rental <IconArrowRight size={15} color="#fff" />
+              </Link>
+              <Link
+                href="/listings"
+                className="inline-flex items-center h-11 px-6 rounded-full bg-white text-[14px] font-medium text-ink hover:bg-page transition"
+              >
+                Browse rentals
+              </Link>
+            </div>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+      </Container>
+    </section>
+  );
+}
+
+function FeaturedListings() {
+  return (
+    <section id="listings" aria-labelledby="featured-heading" className="bg-page">
+      <Container className="pb-24">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-8">
+          <div>
+            <div className="text-[12px] uppercase tracking-[0.18em] text-forest font-medium mb-2">
+              Featured
+            </div>
+            <h2
+              id="featured-heading"
+              className="text-[32px] sm:text-[38px] font-bold tracking-[-0.02em] text-ink leading-[1.05]"
+              style={{ textWrap: "balance" }}
+            >
+              Rentals live on MLS this week
+            </h2>
+          </div>
+          <Link
+            href="/listings"
+            className="inline-flex items-center gap-1.5 h-10 px-4 rounded-full border border-line bg-white text-[13px] font-medium text-ink hover:border-muted transition self-start sm:self-auto"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            See all rentals <IconArrowRight size={14} color="currentColor" />
+          </Link>
         </div>
+
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <ListingCardPlaceholder key={i} />
+          ))}
+        </div>
+      </Container>
+    </section>
+  );
+}
+
+export default function LandingPage() {
+  return (
+    <div className="bg-page min-h-screen flex flex-col">
+      <Nav />
+      <main className="flex-1">
+        <Hero />
+        <FeaturedListings />
       </main>
+      <Footer />
     </div>
   );
 }
