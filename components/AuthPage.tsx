@@ -2,13 +2,12 @@
 
 // Auth page — login + signup, 50/50 split, royal-green left panel.
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState, type ChangeEvent, type ComponentType, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase";
 import { Wordmark } from "@/components/Wordmark";
 import {
   IconArrowRight,
-  IconCheck,
   IconChevronLeft,
   IconEye,
   IconEyeOff,
@@ -115,14 +114,17 @@ function LeftPanel() {
 function RightPanel({ mode }: { mode: Mode }) {
   const isSignup = mode === "signup";
   const router = useRouter();
-  const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
+  const searchParams = useSearchParams();
+  // proxy.ts sets ?redirect=<original-path> when bouncing to /login.
+  const nextPath = searchParams.get("redirect") || "/dashboard";
+
+  const [form, setForm] = useState({ full_name: "", email: "", phone: "", password: "" });
   const set =
     (k: keyof typeof form) =>
     (e: ChangeEvent<HTMLInputElement>) =>
       setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -132,17 +134,21 @@ function RightPanel({ mode }: { mode: Mode }) {
     const supabase = createClient();
 
     if (isSignup) {
+      // user_metadata keys MUST be `full_name` and `phone` — the
+      // frently.handle_new_user() trigger reads raw_user_meta_data->>'full_name'
+      // when inserting into frently.profiles. See frently-docs/SCHEMA.md.
       const { error } = await supabase.auth.signUp({
         email: form.email,
         password: form.password,
         options: {
-          emailRedirectTo: `${window.location.origin}/listings`,
-          data: { name: form.name, phone: form.phone },
+          emailRedirectTo: `${window.location.origin}/dashboard`,
+          data: { full_name: form.full_name, phone: form.phone },
         },
       });
       setSubmitting(false);
       if (error) return setError(error.message);
-      setSubmitted(true);
+      router.push("/dashboard");
+      router.refresh();
     } else {
       const { error } = await supabase.auth.signInWithPassword({
         email: form.email,
@@ -150,7 +156,7 @@ function RightPanel({ mode }: { mode: Mode }) {
       });
       setSubmitting(false);
       if (error) return setError(error.message);
-      router.push("/listings");
+      router.push(nextPath);
       router.refresh();
     }
   };
@@ -173,58 +179,36 @@ function RightPanel({ mode }: { mode: Mode }) {
 
       <div className="flex-1 flex items-center justify-center p-6 md:p-12">
         <div className="w-full max-w-[380px] fade-up">
-          {submitted ? (
-            <div className="text-center">
-              <div className="w-12 h-12 rounded-full bg-forest-50 border border-forest/15 flex items-center justify-center mx-auto mb-5">
-                <IconCheck size={22} color="#1B5E37" strokeWidth={2} />
-              </div>
-              <h1 className="text-[24px] font-bold text-ink tracking-tight">
-                {isSignup ? "You're in." : "Welcome back."}
-              </h1>
-              <p className="text-[14px] text-muted mt-2">
-                {isSignup
-                  ? "Check your inbox to verify your email, then start your first listing."
-                  : "Redirecting you to your dashboard."}
-              </p>
-              <Link
-                href="/listings"
-                className="mt-7 inline-flex items-center gap-1.5 h-11 px-5 rounded-full bg-forest text-white text-[14px] font-medium hover:bg-forest-700"
-              >
-                Continue <IconArrowRight size={15} color="#fff" />
-              </Link>
+          <h1
+            className="text-[26px] font-bold text-ink tracking-tight"
+            style={{ textWrap: "balance" }}
+          >
+            {isSignup ? "Create your account" : "Welcome back"}
+          </h1>
+          <p className="text-[14px] text-muted mt-1.5">
+            {isSignup ? "Start listing your rentals on MLS" : "Log in to manage your listings"}
+          </p>
+
+          {error && (
+            <div
+              role="alert"
+              className="mt-6 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700"
+            >
+              {error}
             </div>
-          ) : (
-            <>
-              <h1
-                className="text-[26px] font-bold text-ink tracking-tight"
-                style={{ textWrap: "balance" }}
-              >
-                {isSignup ? "Create your account" : "Welcome back"}
-              </h1>
-              <p className="text-[14px] text-muted mt-1.5">
-                {isSignup ? "Start listing your rentals on MLS" : "Log in to manage your listings"}
-              </p>
+          )}
 
-              {error && (
-                <div
-                  role="alert"
-                  className="mt-6 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700"
-                >
-                  {error}
-                </div>
-              )}
-
-              <form onSubmit={onSubmit} className="mt-7 space-y-4">
-                {isSignup && (
-                  <TextField
-                    label="Full name"
-                    placeholder="Alex Singh"
-                    icon={IconUser}
-                    value={form.name}
-                    onChange={set("name")}
-                    autoComplete="name"
-                  />
-                )}
+          <form onSubmit={onSubmit} className="mt-7 space-y-4">
+            {isSignup && (
+              <TextField
+                label="Full name"
+                placeholder="Alex Singh"
+                icon={IconUser}
+                value={form.full_name}
+                onChange={set("full_name")}
+                autoComplete="name"
+              />
+            )}
                 <TextField
                   label="Email address"
                   type="email"
@@ -281,14 +265,12 @@ function RightPanel({ mode }: { mode: Mode }) {
                 )}
               </form>
 
-              <div className="mt-6 text-center text-[14px] text-body md:hidden">
-                {isSignup ? "Already have an account? " : "Don't have an account? "}
-                <Link href={isSignup ? "/login" : "/signup"} className="text-forest font-semibold">
-                  {isSignup ? "Log in" : "Sign up"}
-                </Link>
-              </div>
-            </>
-          )}
+          <div className="mt-6 text-center text-[14px] text-body md:hidden">
+            {isSignup ? "Already have an account? " : "Don't have an account? "}
+            <Link href={isSignup ? "/login" : "/signup"} className="text-forest font-semibold">
+              {isSignup ? "Log in" : "Sign up"}
+            </Link>
+          </div>
         </div>
       </div>
 
