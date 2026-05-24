@@ -9,6 +9,11 @@
 // When kicking an unauthenticated user off a protected route, the original
 // path is preserved as `?redirectTo=<path>` so AuthPage can land them where
 // they meant to go after sign-in.
+//
+// Fail-open everywhere: if env is missing or Supabase is unreachable, this
+// proxy logs and lets the request through rather than 500'ing the entire
+// site. The page itself or the API route will still enforce auth as a
+// second line of defense.
 
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
@@ -16,35 +21,75 @@ import { NextResponse, type NextRequest } from 'next/server';
 const ADMIN_PREFIX = '/admin';
 const LANDLORD_ONLY = ['/listings/new']; // agents bounced to /admin
 const LANDLORD_PROTECTED = ['/dashboard', '/listings/new'];
-// /listings/[id] but NOT /listings (the public page) and NOT /listings/new
 const LISTING_DETAIL_RE = /^\/listings\/[^/]+(?:\/.*)?$/;
 const AUTH_PAGES = ['/login', '/signup'];
 
-export async function proxy(request: NextRequest) {
-  let response = NextResponse.next({ request });
+type AuthCheck =
+  | { ok: false }
+  | { ok: true; userId: string | null; role: 'landlord' | 'agent' };
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
+async function authCheck(
+  request: NextRequest,
+  url: string,
+  anon: string,
+  needRole: boolean,
+  setCookieResponse: (r: NextResponse) => void,
+): Promise<AuthCheck> {
+  try {
+    let outResponse = NextResponse.next({ request });
+    const supabase = createServerClient(url, anon, {
       cookies: {
         getAll() {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
+          outResponse = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options),
+            outResponse.cookies.set(name, value, options),
           );
         },
       },
-    },
-  );
+    });
+    setCookieResponse(outResponse);
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { ok: true, userId: null, role: 'landlord' };
+
+    if (!needRole) return { ok: true, userId: user.id, role: 'landlord' };
+
+    try {
+      const { data: profile } = await supabase
+        .schema('frently')
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle<{ role: 'landlord' | 'agent' }>();
+      return { ok: true, userId: user.id, role: profile?.role ?? 'landlord' };
+    } catch (err) {
+      console.error('[proxy] role lookup failed; defaulting to landlord.', err);
+      return { ok: true, userId: user.id, role: 'landlord' };
+    }
+  } catch (err) {
+    console.error('[proxy] Supabase auth check failed; passing request through.', err);
+    return { ok: false };
+  }
+}
+
+export async function proxy(request: NextRequest) {
+  let response = NextResponse.next({ request });
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !anon) {
+    console.error(
+      '[proxy] Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY ' +
+        '— auth gating is DISABLED. Set these in your Vercel env vars.',
+    );
+    return response;
+  }
 
   const { pathname } = request.nextUrl;
   const isAdmin = pathname === ADMIN_PREFIX || pathname.startsWith(ADMIN_PREFIX + '/');
@@ -57,45 +102,41 @@ export async function proxy(request: NextRequest) {
     (p) => pathname === p || pathname.startsWith(p + '/'),
   );
   const isAuthPage = AUTH_PAGES.includes(pathname);
+  const needRole = isAdmin || isAuthPage || isLandlordOnly;
 
-  // Not signed in + protected route → /login (preserve target as ?redirectTo).
-  if (!user && (isAdmin || isLandlordProtected)) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    url.search = '';
-    url.searchParams.set('redirectTo', pathname);
-    return NextResponse.redirect(url);
+  const check = await authCheck(request, url, anon, needRole, (r) => {
+    response = r;
+  });
+  if (!check.ok) return response;
+
+  const { userId, role } = check;
+
+  if (!userId && (isAdmin || isLandlordProtected)) {
+    const u = request.nextUrl.clone();
+    u.pathname = '/login';
+    u.search = '';
+    u.searchParams.set('redirectTo', pathname);
+    return NextResponse.redirect(u);
   }
 
-  // Signed in — we need role to decide /admin, /listings/new, and auth pages.
-  if (user && (isAdmin || isAuthPage || isLandlordOnly)) {
-    const { data: profile } = await supabase
-      .schema('frently')
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .maybeSingle<{ role: 'landlord' | 'agent' }>();
-    const role = profile?.role ?? 'landlord';
-
+  if (userId) {
     if (isAdmin && role !== 'agent') {
-      const url = request.nextUrl.clone();
-      url.pathname = '/dashboard';
-      url.search = '';
-      return NextResponse.redirect(url);
+      const u = request.nextUrl.clone();
+      u.pathname = '/dashboard';
+      u.search = '';
+      return NextResponse.redirect(u);
     }
-
     if (isLandlordOnly && role === 'agent') {
-      const url = request.nextUrl.clone();
-      url.pathname = '/admin';
-      url.search = '';
-      return NextResponse.redirect(url);
+      const u = request.nextUrl.clone();
+      u.pathname = '/admin';
+      u.search = '';
+      return NextResponse.redirect(u);
     }
-
     if (isAuthPage) {
-      const url = request.nextUrl.clone();
-      url.pathname = role === 'agent' ? '/admin' : '/dashboard';
-      url.search = '';
-      return NextResponse.redirect(url);
+      const u = request.nextUrl.clone();
+      u.pathname = role === 'agent' ? '/admin' : '/dashboard';
+      u.search = '';
+      return NextResponse.redirect(u);
     }
   }
 
