@@ -85,26 +85,45 @@ function TextField({
 
 function LeftPanel() {
   return (
-    <div className="hidden md:flex flex-col justify-between bg-forest text-white p-12 lg:p-14">
-      <div className="flex items-center gap-2">
+    <div className="hidden md:flex flex-col justify-between text-white p-12 lg:p-14 relative overflow-hidden bg-forest">
+      {/* Background photo */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="https://plus.unsplash.com/premium_photo-1689609950071-af404daa58a0?q=80&w=687&auto=format&fit=crop"
+        alt=""
+        aria-hidden="true"
+        className="absolute inset-0 w-full h-full object-cover"
+      />
+      {/* Royal-green tint so white text still reads. Layered as two stops:
+          a solid forest wash + a slight darken-from-bottom gradient. */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-black/50 mix-blend-multiply"
+      />
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/40"
+      />
+
+      <div className="relative flex items-center gap-2">
         <Wordmark className="text-[22px] text-white" />
       </div>
 
-      <div className="max-w-[420px]">
+      <div className="relative max-w-[420px]">
         <h2
-          className="text-[34px] lg:text-[40px] font-bold leading-[1.05] tracking-[-0.02em]"
+          className="text-[34px] lg:text-[40px] font-bold leading-[1.05] tracking-[-0.02em] drop-shadow-sm"
           style={{ textWrap: "balance" }}
         >
           Your rental,
           <br />
           on MLS — <span className="italic font-medium opacity-90">fast</span>.
         </h2>
-        <p className="mt-5 text-[15px] text-white/75 leading-relaxed max-w-[360px]">
+        <p className="mt-5 text-[15px] text-white/85 leading-relaxed max-w-[360px]">
           Ontario landlords trust Frently to handle the MLS listing so they don&apos;t have to.
         </p>
       </div>
 
-      <div className="text-[12px] text-white/55 font-mono tracking-wide">
+      <div className="relative text-[12px] text-white/70 font-mono tracking-wide">
         Powered by Vancor Realty · Brokerage #CAS984
       </div>
     </div>
@@ -115,8 +134,10 @@ function RightPanel({ mode }: { mode: Mode }) {
   const isSignup = mode === "signup";
   const router = useRouter();
   const searchParams = useSearchParams();
-  // proxy.ts sets ?redirect=<original-path> when bouncing to /login.
-  const nextPath = searchParams.get("redirect") || "/dashboard";
+  // proxy.ts sets ?redirectTo=<original-path> when bouncing to /login. We
+  // also accept the legacy ?redirect= for backwards compat during the migration.
+  const nextPath =
+    searchParams.get("redirectTo") || searchParams.get("redirect") || "/dashboard";
 
   const [form, setForm] = useState({ full_name: "", email: "", phone: "", password: "" });
   const set =

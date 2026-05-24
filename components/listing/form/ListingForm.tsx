@@ -1,12 +1,18 @@
 "use client";
 
 // Parent form for the landlord intake (6 steps).
-// - currentStep (1..6) in local state
+// - currentStep (1..6) in local state (initialStep prop lets edit-page resume)
 // - one react-hook-form instance shared with steps via FormProvider
 // - "save as you go" — each Next click PATCHes only that step's payload
 // - final submit (Step 6) PATCHes with action='submit' so the server
 //   transitions status to 'pending', stamps submitted_at, and copies
 //   rent_amount → deposit_amount (last-month rule).
+//
+// Error handling:
+// - Validation errors stop the step from advancing (no PATCH fires).
+// - PATCH errors keep the user on the current step with an inline toast.
+// - Submit errors keep the user on Step 6 with the same inline toast.
+// - 401 (session expired) → /login?redirectTo=<current path>.
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
@@ -24,7 +30,7 @@ import { Step4Details } from './Step4Details';
 import { Step5Media } from './Step5Media';
 import { Step6Review } from './Step6Review';
 import { StepIndicator } from './StepIndicator';
-import type { ListingUpdate } from '@/types/listing';
+import type { Listing, ListingUpdate } from '@/types/listing';
 
 type StepKey = keyof typeof stepFields;
 
@@ -44,17 +50,52 @@ const DEFAULTS: ListingUpdate = {
   province: DEFAULT_PROVINCE,
 };
 
-export function ListingForm({ listingId }: { listingId: string }) {
+/** Detect Supabase/PostgREST or fetch 401s in error messages. */
+function isAuthError(e: unknown): boolean {
+  if (!(e instanceof Error)) return false;
+  const m = e.message.toLowerCase();
+  return (
+    m.includes('unauthorized') ||
+    m.includes('jwt expired') ||
+    m.includes('not authenticated') ||
+    m === '401'
+  );
+}
+
+export function ListingForm({
+  listingId,
+  initialValues,
+  initialStep = 1,
+  /** Path used to build ?redirectTo if the session dies mid-edit. */
+  returnPath,
+}: {
+  listingId: string;
+  initialValues?: Partial<Listing> | ListingUpdate;
+  initialStep?: number;
+  returnPath?: string;
+}) {
   const router = useRouter();
-  const [step, setStep] = useState<number>(1);
+  const [step, setStep] = useState<number>(initialStep);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const methods = useForm<ListingUpdate>({
     mode: 'onTouched',
-    defaultValues: DEFAULTS,
+    defaultValues: mergeDefaults(initialValues),
   });
+
+  function handleError(e: unknown, fallback: string) {
+    if (isAuthError(e)) {
+      const target =
+        returnPath ??
+        (typeof window !== 'undefined' ? window.location.pathname : ROUTES.NEW_LISTING);
+      const url = `${ROUTES.LOGIN}?redirectTo=${encodeURIComponent(target)}`;
+      router.push(url);
+      return;
+    }
+    setError(e instanceof Error ? e.message : fallback);
+  }
 
   const goNext = useCallback(async () => {
     setError(null);
@@ -73,37 +114,43 @@ export function ListingForm({ listingId }: { listingId: string }) {
         await updateListing(listingId, payload);
       }
       setStep((s) => Math.min(s + 1, TOTAL_STEPS));
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save');
+      handleError(e, 'Failed to save');
     } finally {
       setSaving(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, listingId, methods]);
 
   const goBack = useCallback(() => {
     setError(null);
     setStep((s) => Math.max(1, s - 1));
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   }, []);
 
   const goToStep = useCallback((s: number) => {
     setError(null);
     setStep(Math.min(Math.max(1, s), TOTAL_STEPS));
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   }, []);
 
   const onSubmit = methods.handleSubmit(async (values) => {
     setError(null);
     try {
       setSubmitting(true);
-      // Flush Step 5's payload one last time, then submit. Server flips status
-      // and computes deposit.
+      // Flush Step 5's payload one last time, then submit.
       await submitListing(listingId, pickStepPayload(5, values));
       router.push(ROUTES.DASHBOARD);
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to submit');
+      handleError(e, 'Failed to submit');
     } finally {
       setSubmitting(false);
     }
@@ -111,6 +158,7 @@ export function ListingForm({ listingId }: { listingId: string }) {
 
   const stepLabel = LISTING_STEPS[step - 1]?.label;
   const isLast = step === TOTAL_STEPS;
+  const busy = saving || submitting;
 
   return (
     <FormProvider {...methods}>
@@ -124,7 +172,9 @@ export function ListingForm({ listingId }: { listingId: string }) {
         <StepIndicator current={step} />
 
         <div className="mt-8">
-          <h2 className="text-[22px] font-bold text-ink tracking-tight">{stepLabel}</h2>
+          <h2 className="text-[20px] sm:text-[22px] font-bold text-ink tracking-tight">
+            {stepLabel}
+          </h2>
         </div>
 
         <div className="mt-6">
@@ -149,30 +199,56 @@ export function ListingForm({ listingId }: { listingId: string }) {
           <button
             type="button"
             onClick={goBack}
-            disabled={step === 1 || saving || submitting}
-            className="h-11 px-5 rounded-full border border-line bg-white text-[14px] font-medium text-ink hover:border-muted transition disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+            disabled={step === 1 || busy}
+            className="h-11 px-4 sm:px-5 rounded-full border border-line bg-white text-[14px] font-medium text-ink hover:border-muted transition disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
           >
             <IconChevronLeft size={14} color="currentColor" /> Back
           </button>
 
           <button
             type="submit"
-            disabled={saving || submitting}
-            className="h-11 px-6 rounded-full bg-forest text-white text-[14px] font-semibold hover:bg-forest-700 transition disabled:opacity-70 inline-flex items-center gap-1.5"
+            disabled={busy}
+            className="h-11 px-5 sm:px-6 rounded-full bg-forest text-white text-[14px] font-semibold hover:bg-forest-700 transition disabled:opacity-70 inline-flex items-center gap-2"
           >
-            {isLast
-              ? submitting
-                ? 'Submitting…'
-                : 'Submit listing for MLS'
-              : saving
-                ? 'Saving…'
-                : 'Next'}
-            {!isLast && <IconArrowRight size={15} color="#fff" />}
+            {busy && <Spinner />}
+            <span>
+              {isLast
+                ? submitting
+                  ? 'Submitting…'
+                  : 'Submit for MLS'
+                : saving
+                  ? 'Saving…'
+                  : 'Next'}
+            </span>
+            {!isLast && !busy && <IconArrowRight size={15} color="#fff" />}
           </button>
         </div>
       </form>
     </FormProvider>
   );
+}
+
+function Spinner() {
+  return (
+    <span
+      aria-hidden
+      className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin"
+    />
+  );
+}
+
+/** Merge caller's initialValues onto DEFAULTS while keeping nulls out of RHF. */
+function mergeDefaults(
+  init: Partial<Listing> | ListingUpdate | undefined,
+): ListingUpdate {
+  if (!init) return DEFAULTS;
+  const cleaned: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(init)) {
+    // RHF dislikes null where a string/number is expected — drop nulls so
+    // DEFAULTS fills them in.
+    if (v !== null && v !== undefined) cleaned[k] = v;
+  }
+  return { ...DEFAULTS, ...(cleaned as ListingUpdate) };
 }
 
 /** Pick the subset of form values belonging to a step. */

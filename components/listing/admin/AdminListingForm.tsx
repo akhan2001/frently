@@ -87,17 +87,21 @@ export function AdminListingForm({ listing }: { listing: Listing }) {
     }
   }
 
-  async function onMarkReady() {
+  /** Returns true on success, false on failure so the caller can close the modal. */
+  async function onMarkReady(): Promise<boolean> {
     setError(null);
+    setMsg(null);
     setSubmitting(true);
     try {
       const values = methods.getValues();
       await markReadyForMLS(listing.id, values);
       router.push(ROUTES.ADMIN);
       router.refresh();
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to mark ready');
       setSubmitting(false);
+      return false;
     }
   }
 
@@ -127,22 +131,26 @@ export function AdminListingForm({ listing }: { listing: Listing }) {
           </div>
         )}
 
-        <div className="sticky bottom-4 z-10 flex items-center justify-end gap-3 bg-white/95 backdrop-blur border border-line rounded-full p-2 shadow-card">
+        {/* Sticky save bar. Stacks vertically on mobile; flex-wrap keeps both
+            buttons reachable at 375px. */}
+        <div className="sticky bottom-4 z-10 flex items-center justify-end gap-2 sm:gap-3 flex-wrap bg-white/95 backdrop-blur border border-line rounded-2xl sm:rounded-full p-2 shadow-card">
           <button
             type="button"
             onClick={onSave}
             disabled={saving || submitting}
-            className="h-10 px-5 rounded-full border border-line bg-white text-[13px] font-medium text-ink hover:border-muted transition disabled:opacity-50"
+            className="h-10 px-4 sm:px-5 rounded-full border border-line bg-white text-[13px] font-medium text-ink hover:border-muted transition disabled:opacity-50 inline-flex items-center gap-2"
           >
-            {saving ? 'Saving…' : 'Save progress'}
+            {saving && <SpinnerDark />}
+            <span>{saving ? 'Saving…' : 'Save progress'}</span>
           </button>
           <button
             type="button"
             onClick={() => setConfirm(true)}
             disabled={saving || submitting}
-            className="h-10 px-5 rounded-full bg-forest text-white text-[13px] font-semibold hover:bg-forest-700 transition disabled:opacity-70"
+            className="h-10 px-4 sm:px-5 rounded-full bg-forest text-white text-[13px] font-semibold hover:bg-forest-700 transition disabled:opacity-70 inline-flex items-center gap-2"
           >
-            Mark ready for MLS
+            {submitting && <Spinner />}
+            <span>Mark ready for MLS</span>
           </button>
         </div>
       </form>
@@ -151,8 +159,12 @@ export function AdminListingForm({ listing }: { listing: Listing }) {
         <ConfirmModal
           onCancel={() => setConfirm(false)}
           onConfirm={async () => {
-            setConfirm(false);
-            await onMarkReady();
+            // Keep the modal mounted while the request is in flight so the
+            // spinner is visible. On success the page navigates away; on
+            // failure we close the modal so the page-level error toast is
+            // visible (per Phase 5 spec).
+            const ok = await onMarkReady();
+            if (!ok) setConfirm(false);
           }}
           submitting={submitting}
         />
@@ -957,6 +969,24 @@ function UseCtx({
   return <>{children(ctx)}</>;
 }
 
+function Spinner() {
+  return (
+    <span
+      aria-hidden
+      className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin"
+    />
+  );
+}
+
+function SpinnerDark() {
+  return (
+    <span
+      aria-hidden
+      className="w-3.5 h-3.5 border-2 border-ink/20 border-t-ink rounded-full animate-spin"
+    />
+  );
+}
+
 function ConfirmModal({
   onCancel,
   onConfirm,
@@ -991,9 +1021,10 @@ function ConfirmModal({
             type="button"
             onClick={onConfirm}
             disabled={submitting}
-            className="h-10 px-5 rounded-full bg-forest text-white text-[13px] font-semibold hover:bg-forest-700 disabled:opacity-70"
+            className="h-10 px-5 rounded-full bg-forest text-white text-[13px] font-semibold hover:bg-forest-700 disabled:opacity-70 inline-flex items-center gap-2"
           >
-            {submitting ? 'Marking…' : 'Mark ready'}
+            {submitting && <Spinner />}
+            <span>{submitting ? 'Marking…' : 'Mark ready'}</span>
           </button>
         </div>
       </div>

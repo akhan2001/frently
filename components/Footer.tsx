@@ -6,7 +6,7 @@ export function Footer() {
   return (
     <footer className="bg-white border-t border-line">
       <Container>
-        <div className="py-8 flex items-center justify-between gap-4">
+        <div className="py-8 flex items-center justify-between gap-3 flex-wrap">
           <span className="text-forest text-[20px]"><Wordmark /></span>
           <span className="text-[12px] text-muted">
             © 2026 · Operated by Vancor Realty · Brokerage{" "}

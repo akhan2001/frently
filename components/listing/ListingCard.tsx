@@ -58,8 +58,8 @@ export function ListingCard({
         (emphasized ? 'border-amber-300 ring-2 ring-amber-200/60' : 'border-line')
       }
     >
-      <div className="flex gap-4 p-4 items-stretch">
-        <div className="relative w-28 h-20 rounded-lg overflow-hidden bg-page shrink-0">
+      <div className="flex gap-3 sm:gap-4 p-3 sm:p-4 items-stretch">
+        <div className="relative w-20 h-16 sm:w-28 sm:h-20 rounded-lg overflow-hidden bg-page shrink-0">
           {photo ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={photo} alt="" className="w-full h-full object-cover" />
