@@ -12,6 +12,7 @@
 //
 // The card is no longer a single <Link>; explicit buttons live on the right.
 import Link from 'next/link';
+import { useState } from 'react';
 import { ROUTES } from '@/constants/routes';
 import { StatusBadge } from '@/components/listing/StatusBadge';
 import type { Listing } from '@/types/listing';
@@ -39,6 +40,7 @@ export function ListingCard({
   variant = 'landlord',
   rightMeta,
   emphasized = false,
+  onDelete,
 }: {
   listing: Listing;
   /** 'landlord' (default) shows View + Edit; 'agent' shows Review. */
@@ -47,7 +49,11 @@ export function ListingCard({
   rightMeta?: string;
   /** Visually elevate the card (used for pending rows on the agent dashboard). */
   emphasized?: boolean;
+  /** When provided and listing is a draft, shows a Delete button. */
+  onDelete?: (id: string) => void;
 }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const photo = listing.photo_urls?.[0];
   const isDraft = listing.status === 'draft';
 
@@ -104,6 +110,33 @@ export function ListingCard({
             >
               Review
             </Link>
+          ) : confirmDelete ? (
+            // Inline confirmation — replace all buttons with confirm / cancel.
+            <>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={async () => {
+                  setDeleting(true);
+                  try {
+                    onDelete?.(listing.id);
+                  } finally {
+                    setDeleting(false);
+                    setConfirmDelete(false);
+                  }
+                }}
+                className="h-9 px-3 rounded-full bg-red-600 text-white text-[12px] font-semibold hover:bg-red-700 transition disabled:opacity-60 inline-flex items-center justify-center whitespace-nowrap"
+              >
+                {deleting ? 'Deleting…' : 'Delete'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(false)}
+                className="h-9 px-3 rounded-full border border-line bg-white text-[12px] font-medium text-ink hover:border-muted transition inline-flex items-center justify-center"
+              >
+                Cancel
+              </button>
+            </>
           ) : (
             <>
               <Link
@@ -119,6 +152,15 @@ export function ListingCard({
                 >
                   Edit
                 </Link>
+              )}
+              {isDraft && onDelete && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(true)}
+                  className="h-9 px-4 rounded-full border border-red-200 bg-white text-[12.5px] font-medium text-red-600 hover:border-red-400 hover:bg-red-50 transition inline-flex items-center justify-center"
+                >
+                  Delete
+                </button>
               )}
             </>
           )}

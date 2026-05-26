@@ -94,6 +94,42 @@ export async function GET(
   return NextResponse.json(data);
 }
 
+export async function DELETE(
+  _request: NextRequest,
+  ctx: { params: Promise<{ id: string }> },
+) {
+  const { id } = await ctx.params;
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  // Verify the caller owns the listing and it is still a draft.
+  const { data: listing } = await supabase
+    .schema('frently')
+    .from('listings')
+    .select('id, user_id, status')
+    .eq('id', id)
+    .maybeSingle<{ id: string; user_id: string; status: string }>();
+
+  if (!listing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (listing.user_id !== user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (listing.status !== 'draft') {
+    return NextResponse.json({ error: 'Only draft listings can be deleted' }, { status: 400 });
+  }
+
+  const { error } = await supabase
+    .schema('frently')
+    .from('listings')
+    .delete()
+    .eq('id', id);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return new NextResponse(null, { status: 204 });
+}
+
 export async function PATCH(
   request: NextRequest,
   ctx: { params: Promise<{ id: string }> },
@@ -107,7 +143,7 @@ export async function PATCH(
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = (await request.json().catch(() => null)) as
-    | (Partial<ListingUpdate> & { action?: 'submit' | 'agent_ready' })
+    | (Partial<ListingUpdate> & { action?: 'submit' | 'agent_ready' | 'withdraw' })
     | null;
   if (!body) return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
 
@@ -142,6 +178,18 @@ export async function PATCH(
     const now = new Date().toISOString();
     update.agent_reviewed_at = now;
     update.ready_at = now;
+  } else if (body.action === 'withdraw') {
+    // Agents only — marks the listing as withdrawn.
+    const { data: actor } = await supabase
+      .schema('frently')
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle<{ role: 'landlord' | 'agent' }>();
+    if (actor?.role !== 'agent') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    update.status = 'withdrawn';
   } else if (!body.action) {
     // No explicit action — if an agent is editing a still-pending listing,
     // auto-promote it to 'in_review' so the dashboard counters reflect that

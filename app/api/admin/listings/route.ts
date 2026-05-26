@@ -38,11 +38,13 @@ export async function GET() {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  // Pull all listings via RLS (agents_see_all_listings).
+  // Pull all submitted listings via RLS (agents_see_all_listings).
+  // Drafts are excluded — agents only see what landlords have submitted.
   const { data: listings, error } = await supabase
     .schema('frently')
     .from('listings')
     .select('*')
+    .neq('status', 'draft')
     .order('updated_at', { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

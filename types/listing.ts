@@ -11,7 +11,8 @@ export type ListingStatus =
   | 'in_review'
   | 'ready_for_mls'
   | 'live'
-  | 'expired';
+  | 'expired'
+  | 'withdrawn';
 
 export interface Profile {
   id: string;

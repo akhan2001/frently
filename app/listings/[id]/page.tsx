@@ -19,6 +19,7 @@ const STATUS_EXPLAINER: Record<Listing['status'], string> = {
   ready_for_mls: 'Ready for MLS submission. Vancor will submit shortly.',
   live: 'Your listing is live on MLS.',
   expired: 'This listing has expired.',
+  withdrawn: 'This listing has been withdrawn.',
 };
 
 export default async function ListingDetailPage(

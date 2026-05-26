@@ -11,7 +11,7 @@ import { Nav } from '@/components/Nav';
 import { ListingCard } from '@/components/listing/ListingCard';
 import { IconArrowRight } from '@/components/icons';
 import { useUser } from '@/hooks/useUser';
-import { getListingsByUser } from '@/services/listings';
+import { deleteListing, getListingsByUser } from '@/services/listings';
 import type { Listing } from '@/types/listing';
 
 export default function DashboardPage() {
@@ -36,6 +36,21 @@ export default function DashboardPage() {
 
   const displayName =
     profile?.full_name?.trim() || (user?.email ? user.email.split('@')[0] : 'there');
+
+  async function handleDelete(id: string) {
+    // Optimistically remove from the list, then call the API.
+    setListings((prev) => prev?.filter((l) => l.id !== id) ?? null);
+    try {
+      await deleteListing(id);
+    } catch (e) {
+      // Roll back on failure.
+      setError(e instanceof Error ? e.message : 'Failed to delete listing');
+      // Re-fetch to restore accurate state.
+      getListingsByUser()
+        .then((rows) => setListings(rows))
+        .catch(() => {});
+    }
+  }
 
   return (
     <div className="bg-page min-h-screen flex flex-col">
@@ -79,7 +94,7 @@ export default function DashboardPage() {
             ) : (
               <div className="grid gap-4">
                 {listings.map((l) => (
-                  <ListingCard key={l.id} listing={l} />
+                  <ListingCard key={l.id} listing={l} onDelete={handleDelete} />
                 ))}
               </div>
             )}

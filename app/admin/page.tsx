@@ -11,8 +11,10 @@ import { Container } from '@/components/Container';
 import { Footer } from '@/components/Footer';
 import { Nav } from '@/components/Nav';
 import { ListingCard } from '@/components/listing/ListingCard';
+import { IconDownload } from '@/components/icons';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/hooks/useUser';
+import { exportAllListings } from '@/utils/export';
 import type { AdminListingsResponse } from '@/app/api/admin/listings/route';
 import type { Listing, ListingStatus } from '@/types/listing';
 
@@ -25,6 +27,7 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'in_review', label: 'In review' },
   { key: 'ready_for_mls', label: 'Ready for MLS' },
   { key: 'live', label: 'Live' },
+  { key: 'withdrawn', label: 'Withdrawn' },
 ];
 
 // Pending first (it's what an agent needs to action), then the rest in the
@@ -36,6 +39,7 @@ const STATUS_RANK: Record<ListingStatus, number> = {
   live: 3,
   draft: 4,
   expired: 5,
+  withdrawn: 6,
 };
 
 export default function AdminDashboardPage() {
@@ -75,6 +79,7 @@ export default function AdminDashboardPage() {
       ready_for_mls: 0,
       live: 0,
       expired: 0,
+      withdrawn: 0,
     };
     for (const l of listings ?? []) c[l.status]++;
     return c;
@@ -114,6 +119,15 @@ export default function AdminDashboardPage() {
                 All landlord submissions, grouped by status.
               </p>
             </div>
+            {listings && listings.length > 0 && (
+              <button
+                onClick={() => exportAllListings(listings)}
+                className="inline-flex items-center gap-2 h-9 px-4 rounded-full border border-line bg-white text-[13px] font-medium text-ink hover:border-muted transition shrink-0"
+              >
+                <IconDownload size={15} />
+                Export All (.xlsx)
+              </button>
+            )}
           </div>
 
           <section className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-3">

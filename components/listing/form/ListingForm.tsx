@@ -133,6 +133,25 @@ export function ListingForm({
     }
   }, []);
 
+  /** Save current step's data and return to the dashboard without advancing. */
+  const saveDraft = useCallback(async () => {
+    setError(null);
+    const values = methods.getValues();
+    const payload = pickStepPayload(step, values);
+    try {
+      setSaving(true);
+      if (Object.keys(payload).length > 0) {
+        await updateListing(listingId, payload);
+      }
+      router.push(ROUTES.DASHBOARD);
+    } catch (e) {
+      handleError(e, 'Failed to save draft');
+    } finally {
+      setSaving(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, listingId, methods]);
+
   const goToStep = useCallback((s: number) => {
     setError(null);
     setStep(Math.min(Math.max(1, s), TOTAL_STEPS));
@@ -205,23 +224,35 @@ export function ListingForm({
             <IconChevronLeft size={14} color="currentColor" /> Back
           </button>
 
-          <button
-            type="submit"
-            disabled={busy}
-            className="h-11 px-5 sm:px-6 rounded-full bg-forest text-white text-[14px] font-semibold hover:bg-forest-700 transition disabled:opacity-70 inline-flex items-center gap-2"
-          >
-            {busy && <Spinner />}
-            <span>
-              {isLast
-                ? submitting
-                  ? 'Submitting…'
-                  : 'Submit for MLS'
-                : saving
-                  ? 'Saving…'
-                  : 'Next'}
-            </span>
-            {!isLast && !busy && <IconArrowRight size={15} color="#fff" />}
-          </button>
+          <div className="flex items-center gap-2">
+            {!isLast && (
+              <button
+                type="button"
+                onClick={() => void saveDraft()}
+                disabled={busy}
+                className="h-11 px-4 sm:px-5 rounded-full border border-line bg-white text-[14px] font-medium text-ink hover:border-muted transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Save Draft
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={busy}
+              className="h-11 px-5 sm:px-6 rounded-full bg-forest text-white text-[14px] font-semibold hover:bg-forest-700 transition disabled:opacity-70 inline-flex items-center gap-2"
+            >
+              {busy && <Spinner />}
+              <span>
+                {isLast
+                  ? submitting
+                    ? 'Submitting…'
+                    : 'Submit for MLS'
+                  : saving
+                    ? 'Saving…'
+                    : 'Next'}
+              </span>
+              {!isLast && !busy && <IconArrowRight size={15} color="#fff" />}
+            </button>
+          </div>
         </div>
       </form>
     </FormProvider>

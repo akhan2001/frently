@@ -10,6 +10,7 @@ const STYLES: Record<ListingStatus, { bg: string; text: string; dot: string; lab
   ready_for_mls: { bg: 'bg-violet-50',   text: 'text-violet-700',  dot: 'bg-violet-500', label: 'Ready for MLS' },
   live:          { bg: 'bg-forest-50',   text: 'text-forest',      dot: 'bg-forest',     label: 'Live' },
   expired:       { bg: 'bg-red-50',      text: 'text-red-700',     dot: 'bg-red-500',    label: 'Expired' },
+  withdrawn:     { bg: 'bg-slate-100',   text: 'text-slate-500',   dot: 'bg-slate-400',  label: 'Withdrawn' },
 };
 
 export function StatusBadge({ status }: { status: ListingStatus }) {

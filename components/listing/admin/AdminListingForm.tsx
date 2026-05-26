@@ -46,6 +46,7 @@ import { ROUTES } from '@/constants/routes';
 import {
   agentUpdateListing,
   markReadyForMLS,
+  withdrawListing,
 } from '@/services/listings';
 import { CheckboxGroup } from '@/components/ui/CheckboxGroup';
 import { Field } from '@/components/ui/Field';
@@ -61,7 +62,9 @@ export function AdminListingForm({ listing }: { listing: Listing }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const [confirmWithdraw, setConfirmWithdraw] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -84,6 +87,22 @@ export function AdminListingForm({ listing }: { listing: Listing }) {
       setError(e instanceof Error ? e.message : 'Save failed');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function onWithdraw(): Promise<boolean> {
+    setError(null);
+    setMsg(null);
+    setWithdrawing(true);
+    try {
+      await withdrawListing(listing.id);
+      router.push(ROUTES.ADMIN);
+      router.refresh();
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to withdraw');
+      setWithdrawing(false);
+      return false;
     }
   }
 
@@ -133,25 +152,37 @@ export function AdminListingForm({ listing }: { listing: Listing }) {
 
         {/* Sticky save bar. Stacks vertically on mobile; flex-wrap keeps both
             buttons reachable at 375px. */}
-        <div className="sticky bottom-4 z-10 flex items-center justify-end gap-2 sm:gap-3 flex-wrap bg-white/95 backdrop-blur border border-line rounded-2xl sm:rounded-full p-2 shadow-card">
+        <div className="sticky bottom-4 z-10 flex items-center justify-between gap-2 sm:gap-3 flex-wrap bg-white/95 backdrop-blur border border-line rounded-2xl sm:rounded-full p-2 shadow-card">
+          {/* Withdraw — destructive action, left-aligned to separate it visually */}
           <button
             type="button"
-            onClick={onSave}
-            disabled={saving || submitting}
-            className="h-10 px-4 sm:px-5 rounded-full border border-line bg-white text-[13px] font-medium text-ink hover:border-muted transition disabled:opacity-50 inline-flex items-center gap-2"
+            onClick={() => setConfirmWithdraw(true)}
+            disabled={saving || submitting || withdrawing || listing.status === 'withdrawn'}
+            className="h-10 px-4 sm:px-5 rounded-full border border-red-200 bg-white text-[13px] font-medium text-red-600 hover:border-red-400 hover:bg-red-50 transition disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-2"
           >
-            {saving && <SpinnerDark />}
-            <span>{saving ? 'Saving…' : 'Save progress'}</span>
+            {listing.status === 'withdrawn' ? 'Withdrawn' : 'Withdraw Listing'}
           </button>
-          <button
-            type="button"
-            onClick={() => setConfirm(true)}
-            disabled={saving || submitting}
-            className="h-10 px-4 sm:px-5 rounded-full bg-forest text-white text-[13px] font-semibold hover:bg-forest-700 transition disabled:opacity-70 inline-flex items-center gap-2"
-          >
-            {submitting && <Spinner />}
-            <span>Mark ready for MLS</span>
-          </button>
+
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={saving || submitting || withdrawing}
+              className="h-10 px-4 sm:px-5 rounded-full border border-line bg-white text-[13px] font-medium text-ink hover:border-muted transition disabled:opacity-50 inline-flex items-center gap-2"
+            >
+              {saving && <SpinnerDark />}
+              <span>{saving ? 'Saving…' : 'Save progress'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirm(true)}
+              disabled={saving || submitting || withdrawing || listing.status === 'withdrawn'}
+              className="h-10 px-4 sm:px-5 rounded-full bg-forest text-white text-[13px] font-semibold hover:bg-forest-700 transition disabled:opacity-70 inline-flex items-center gap-2"
+            >
+              {submitting && <Spinner />}
+              <span>Mark ready for MLS</span>
+            </button>
+          </div>
         </div>
       </form>
 
@@ -159,14 +190,21 @@ export function AdminListingForm({ listing }: { listing: Listing }) {
         <ConfirmModal
           onCancel={() => setConfirm(false)}
           onConfirm={async () => {
-            // Keep the modal mounted while the request is in flight so the
-            // spinner is visible. On success the page navigates away; on
-            // failure we close the modal so the page-level error toast is
-            // visible (per Phase 5 spec).
             const ok = await onMarkReady();
             if (!ok) setConfirm(false);
           }}
           submitting={submitting}
+        />
+      )}
+
+      {confirmWithdraw && (
+        <WithdrawModal
+          onCancel={() => setConfirmWithdraw(false)}
+          onConfirm={async () => {
+            const ok = await onWithdraw();
+            if (!ok) setConfirmWithdraw(false);
+          }}
+          withdrawing={withdrawing}
         />
       )}
     </FormProvider>
@@ -1025,6 +1063,51 @@ function ConfirmModal({
           >
             {submitting && <Spinner />}
             <span>{submitting ? 'Marking…' : 'Mark ready'}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WithdrawModal({
+  onCancel,
+  onConfirm,
+  withdrawing,
+}: {
+  onCancel: () => void;
+  onConfirm: () => void;
+  withdrawing: boolean;
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+    >
+      <div className="w-full max-w-[420px] rounded-2xl bg-white border border-line p-6 shadow-card">
+        <h3 className="text-[16px] font-semibold text-ink">Withdraw this listing?</h3>
+        <p className="mt-2 text-[13px] text-muted leading-relaxed">
+          The listing will be marked as <strong>Withdrawn</strong> and removed from the active
+          queue. The landlord&apos;s data is preserved — this cannot be undone from the portal.
+        </p>
+        <div className="mt-5 flex items-center justify-end gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={withdrawing}
+            className="h-10 px-4 rounded-full border border-line bg-white text-[13px] font-medium text-ink hover:border-muted"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={withdrawing}
+            className="h-10 px-5 rounded-full bg-red-600 text-white text-[13px] font-semibold hover:bg-red-700 disabled:opacity-70 inline-flex items-center gap-2"
+          >
+            {withdrawing && <Spinner />}
+            <span>{withdrawing ? 'Withdrawing…' : 'Withdraw Listing'}</span>
           </button>
         </div>
       </div>

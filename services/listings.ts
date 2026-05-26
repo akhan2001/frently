@@ -27,7 +27,7 @@ export async function createListing(): Promise<{ id: string }> {
 export async function updateListing(
   id: string,
   data: ListingUpdate,
-  action?: 'submit' | 'agent_ready',
+  action?: 'submit' | 'agent_ready' | 'withdraw',
 ): Promise<Listing> {
   const res = await fetch(`/api/listings/${id}`, {
     method: 'PATCH',
@@ -54,6 +54,20 @@ export function agentUpdateListing(id: string, data: ListingUpdate) {
 /** Agent finalizes — flips to ready_for_mls and fires the Vancor email. */
 export function markReadyForMLS(id: string, data: ListingUpdate = {}) {
   return updateListing(id, data, 'agent_ready');
+}
+
+/** Agent marks a listing as withdrawn. */
+export function withdrawListing(id: string) {
+  return updateListing(id, {}, 'withdraw');
+}
+
+/** Landlord hard-deletes a draft listing. */
+export async function deleteListing(id: string): Promise<void> {
+  const res = await fetch(`/api/listings/${id}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as { error?: string }).error ?? 'Failed to delete listing');
+  }
 }
 
 export async function getListingById(id: string): Promise<Listing | null> {

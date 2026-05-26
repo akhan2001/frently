@@ -8,6 +8,7 @@ import { Footer } from '@/components/Footer';
 import { Nav } from '@/components/Nav';
 import { StatusBadge } from '@/components/listing/StatusBadge';
 import { AdminListingForm } from '@/components/listing/admin/AdminListingForm';
+import { ExportListingButton } from '@/components/listing/admin/ExportListingButton';
 import { Part1Reference } from '@/components/listing/admin/Part1Reference';
 import { ROUTES } from '@/constants/routes';
 import { createClient } from '@/lib/supabase-server';
@@ -47,14 +48,17 @@ export default async function AdminListingPage(
       <Nav />
       <main className="flex-1">
         <Container className="py-8">
-          <div className="flex items-center gap-3 mb-6">
-            <Link
-              href={ROUTES.ADMIN}
-              className="text-[12.5px] text-muted hover:text-ink inline-flex items-center gap-1"
-            >
-              <IconChevronLeft size={13} color="currentColor" /> Back to admin
-            </Link>
-            <StatusBadge status={listing.status} />
+          <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
+            <div className="flex items-center gap-3">
+              <Link
+                href={ROUTES.ADMIN}
+                className="text-[12.5px] text-muted hover:text-ink inline-flex items-center gap-1"
+              >
+                <IconChevronLeft size={13} color="currentColor" /> Back to admin
+              </Link>
+              <StatusBadge status={listing.status} />
+            </div>
+            <ExportListingButton listing={listing} />
           </div>
 
           <div className="grid lg:grid-cols-[360px_1fr] gap-8">

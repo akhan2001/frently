@@ -109,3 +109,8 @@ export const IconPhone = (p: IconProps) => (
     <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z" />
   </Icon>
 );
+export const IconDownload = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4 16v1a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-1M12 4v12m0 0l-4-4m4 4 4-4" />
+  </Icon>
+);
